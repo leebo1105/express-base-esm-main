@@ -7,9 +7,6 @@ const dateFormat = 'YYYY-MM-DD'
 const router = express.Router()
 
 const getListData = async (req) => {
-  let keyword = req.query.keyword || '' // 預設值為空字串
-  let birthBegin = req.query.birthBegin || '' // 這個日期之後出生的
-  let birthEnd = req.query.birthEnd || '' // 這個日期之前出生的
   const perPage = 20 // 每頁最多有幾筆
   let page = +req.query.page || 1
 
@@ -21,21 +18,7 @@ const getListData = async (req) => {
     }
   }
 
-  let where = 'WHERE 1 '
-  if (keyword) {
-    where += ` AND (title LIKE ${db.escape(`%${keyword}%`)} OR date LIKE ${db.escape(`%${keyword}%`)})`
-  }
-
-  birthBegin = moment(birthBegin)
-  if (birthBegin.isValid()) {
-    where += ` AND birthday >= '${birthBegin.format(dateFormat)}' `
-  }
-  birthEnd = moment(birthEnd)
-  if (birthEnd.isValid()) {
-    where += ` AND birthday <= '${birthEnd.format(dateFormat)}' `
-  }
-
-  const sql = `SELECT COUNT(*) totalRows FROM articles ${where}`
+  const sql = `SELECT COUNT(*) totalRows FROM articles `
   const [[{ totalRows }]] = await db.query(sql)
 
   let totalPages = 0
@@ -51,6 +34,54 @@ const getListData = async (req) => {
     }
 
     const sql2 = `SELECT * FROM articles JOIN key_words ON key_word_id = key_words.k_id ORDER BY a_id DESC LIMIT ${(page - 1) * perPage}, ${perPage}`
+    ;[rows] = await db.query(sql2)
+
+    rows.forEach((r) => {
+      if (r.date) {
+        r.date = moment(r.date).format(dateFormat)
+      }
+    })
+  }
+
+  return {
+    success: true,
+    totalRows,
+    totalPages,
+    page,
+    perPage,
+    rows,
+    qs: req.query,
+  }
+}
+
+const getListDataAsc = async (req) => {
+  const perPage = 20 // 每頁最多有幾筆
+  let page = +req.query.page || 1
+
+  if (page < 1) {
+    return {
+      success: false,
+      redirect: `?page=1`,
+      info: 'page 值太小',
+    }
+  }
+
+  const sql = `SELECT COUNT(*) totalRows FROM articles `
+  const [[{ totalRows }]] = await db.query(sql)
+
+  let totalPages = 0
+  let rows = []
+  if (totalRows > 0) {
+    totalPages = Math.ceil(totalRows / perPage)
+    if (page > totalPages) {
+      return {
+        success: false,
+        redirect: `?page=${totalPages}`,
+        info: 'page 值太大',
+      }
+    }
+
+    const sql2 = `SELECT * FROM articles JOIN key_words ON key_word_id = key_words.k_id ORDER BY a_id ASC LIMIT ${(page - 1) * perPage}, ${perPage}`
     ;[rows] = await db.query(sql2)
 
     rows.forEach((r) => {
@@ -87,6 +118,11 @@ router.get('/', async (req, res) => {
 
 router.get('/api', async (req, res) => {
   const result = await getListData(req)
+  res.json(result)
+})
+
+router.get('/api/sortedAsc', async (req, res) => {
+  const result = await getListDataAsc(req)
   res.json(result)
 })
 
