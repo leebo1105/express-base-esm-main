@@ -7,13 +7,12 @@ import upload from '#configs/upload-imgs.js'
 const couponsRouter = express.Router()
 const dateFormat = 'YYYY-MM-DD'
 
-// restful api -> get- 取得顯示資料 /put - 修改現有數據 / post -新增數據 / delete - 刪除數據
-//折價卷-增(送出折價卷時寫入資料表 - 總共有 4種卷
 couponsRouter.post('/add/:id', upload.none(), async (req, res) => {
   const output = {
     success: false,
     bodyData: req.body,
     result: {},
+    message: '',
   }
 
   console.log('Received request with ID:', req.params.id)
@@ -40,7 +39,7 @@ couponsRouter.post('/add/:id', upload.none(), async (req, res) => {
     let accumulation = amountRows[0].totalAmount || 0
     let cs_id = 0
 
-    if (accumulation >= 20000) {
+    if (accumulation >= 18000) {
       cs_id = 4
     } else if (accumulation >= 12000) {
       cs_id = 3
@@ -66,6 +65,21 @@ couponsRouter.post('/add/:id', upload.none(), async (req, res) => {
         assignedCsId: cs_id,
         validCsIds: Array.from(validCsIdSet),
       })
+      return
+    }
+
+    // Check if the member already has this coupon
+    const sqlCheckCoupon = `
+      SELECT * FROM coupons
+      WHERE user_id = ? AND cs_id = ?
+    `
+    const [couponRows] = await db.query(sqlCheckCoupon, [m_id, cs_id])
+
+    if (couponRows.length > 0) {
+      console.log('Coupon already exists for this member:', cs_id)
+      output.success = true
+      output.result = couponRows[0]
+      res.json({ output })
       return
     }
 
