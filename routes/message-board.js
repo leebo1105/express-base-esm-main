@@ -8,7 +8,7 @@ const router = express.Router()
 const upload = multer() // 初始化 multer
 
 const getAllComments = async () => {
-  const sql = `SELECT * FROM comments ORDER BY c_id DESC LIMIT 10 `
+  const sql = `SELECT * FROM comments ORDER BY c_id DESC LIMIT 5 `
   const [rows] = await db.query(sql)
 
   const comments = rows.map((comment) => ({
