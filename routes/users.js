@@ -112,6 +112,8 @@ router.post('/', async function (req, res) {
       password: newUser.password,
       username: newUser.username,
       email: newUser.email,
+      phone: newUser.phone,
+      birth_date: newUser.birth_date,
     },
   })
 
