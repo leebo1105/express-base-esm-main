@@ -11,6 +11,7 @@ import sessionFileStore from 'session-file-store'
 import db from './configs/mysql.js' // 引入 MySQL 連接池
 import reservationRoutes from './routes/reservation.js'
 import memberRoutes from './routes/member.js'
+import historyRoutes from './routes/history.js'
 import paymentRoutes from './routes/payment.js'
 import { fileURLToPath, pathToFileURL } from 'url'
 //這是聊天用管道 我把它設為聊天室專用
