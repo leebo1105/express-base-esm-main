@@ -111,11 +111,10 @@ for (const filename of filenames) {
 }
 // 載入routes中的各路由檔案，並套用api路由 END
 
-// 其他自定義路由
 app.use('/reserve', reservationRoutes)
 app.use('/auth', memberRoutes)
-// 設定支付路由，使用 '/payment' 作為基礎路徑
 app.use('/payment', paymentRoutes)
+app.use('/history', historyRoutes)
 
 // 捕抓 404 錯誤處理
 app.use(function (req, res, next) {
@@ -138,8 +137,8 @@ const io = new Server(server, {
   },
 })
 
-const users = {} // 用來儲存每個使用者的socket.id
-const adminSockets = new Set() // 用來儲存管理者的socket.id
+const users = {}
+const adminSockets = new Set()
 
 io.on('connection', (socket) => {
   console.log('使用者連線:', socket.id)
@@ -149,23 +148,69 @@ io.on('connection', (socket) => {
 
     try {
       const connection = await db.getConnection()
+
+      const [latestMessage] = await connection.query(
+        'SELECT isRead FROM messages ORDER BY timestamp DESC LIMIT 1'
+      )
+      const latestIsReadStatus = latestMessage[0]
+        ? latestMessage[0].isRead
+        : false
+
       const [results] = await connection.query('INSERT INTO messages SET ?', {
         room: message.room,
         sender: message.sender,
         isMerchant: message.isMerchant,
         message: message.message,
         timestamp: new Date(),
+        isRead: message.isRead || false,
       })
       connection.release()
       console.log('訊息儲存的欄位 id:', results.insertId)
-      io.emit('newMessage', message)
+
+      message.timestamp = new Date()
+      io.emit('newMessage', {
+        ...message,
+        id: results.insertId,
+        status: latestIsReadStatus ? 'read' : 'sent',
+      })
     } catch (error) {
       console.error('無法傳入資料表:', error)
     }
   })
 
+  socket.on('roomRestart', async () => {
+    io.emit('roomRestart')
+  })
   socket.on('typing', (data) => {
+    console.log('正在輸入中')
+    console.log(data)
     io.emit('typing', data)
+  })
+  socket.on('messageRead', async (data) => {
+    const { room, sender } = data
+    console.log(data)
+
+    const otherSender = sender === 1 ? 2 : 1
+    console.log(otherSender)
+
+    try {
+      const connection = await db.getConnection()
+      const [results] = await connection.query(
+        'UPDATE messages SET isRead = ? WHERE room = ? AND sender = ? AND isRead = false',
+        [true, room, otherSender]
+      )
+      connection.release()
+      console.log('消息已讀狀態已更新')
+      console.log(results)
+
+      socket.emit('messageRead', {
+        id: data.id,
+        sender: data.sender,
+        status: 'read',
+      })
+    } catch (error) {
+      console.error('無法更新消息已讀狀態:', error)
+    }
   })
 
   socket.on('disconnect', () => {
