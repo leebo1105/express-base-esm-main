@@ -14,11 +14,8 @@ import memberRoutes from './routes/member.js'
 import historyRoutes from './routes/history.js'
 import paymentRoutes from './routes/payment.js'
 import { fileURLToPath, pathToFileURL } from 'url'
-//這是聊天用管道 我把它設為聊天室專用
 import http from 'http'
-//引入socket.io
 import { Server } from 'socket.io'
-//使用跨源
 import cors from 'cors'
 
 // 計算 __dirname 替代
@@ -129,7 +126,6 @@ app.use(function (err, req, res, next) {
   res.status(err.status || 500).send({ error: err })
 })
 
-// 建立 HTTP 伺服器用於聊天
 const server = http.createServer(app)
 const io = new Server(server, {
   cors: {
@@ -211,6 +207,38 @@ io.on('connection', (socket) => {
       })
     } catch (error) {
       console.error('無法更新消息已讀狀態:', error)
+    }
+  })
+
+  socket.on('sendImage', async (imageMessage) => {
+    console.log('接收到的圖片訊息:', imageMessage)
+
+    if (!imageMessage.message || !imageMessage.room || !imageMessage.sender) {
+      console.error('圖片訊息缺少必要的資料')
+      return
+    }
+
+    try {
+      const connection = await db.getConnection()
+
+      const [results] = await connection.query('INSERT INTO messages SET ?', {
+        room: imageMessage.room,
+        sender: imageMessage.sender,
+        isMerchant: imageMessage.isMerchant,
+        message: imageMessage.message,
+        timestamp: new Date(),
+        isRead: imageMessage.isRead || false,
+        type: 'image',
+      })
+
+      console.log('圖片訊息儲存的欄位 id:', results.insertId)
+
+      imageMessage.id = results.insertId
+      io.emit('newImageMessage', imageMessage)
+
+      connection.release()
+    } catch (error) {
+      console.error('無法儲存圖片訊息:', error)
     }
   })
 
